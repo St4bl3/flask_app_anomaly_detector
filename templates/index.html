@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Video Anomaly Detection</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        background-color: #f0f0f0;
+        color: #333333;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+      }
+      .container {
+        background-color: #ffffff;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 700px;
+        text-align: center;
+      }
+      h1 {
+        color: #666666;
+        margin-bottom: 1.5rem;
+      }
+      .form-section {
+        margin-bottom: 2rem;
+        border: 1px solid #cccccc;
+        padding: 1.5rem;
+        border-radius: 8px;
+      }
+      h3 {
+        margin-top: 0;
+        color: #444444;
+        border-bottom: 2px solid #666666;
+        padding-bottom: 0.5rem;
+        display: inline-block;
+      }
+      .video-options label {
+        display: block;
+        margin: 0.5rem 0;
+        cursor: pointer;
+      }
+      input[type="radio"],
+      input[type="file"] {
+        margin-right: 8px;
+      }
+      .upload-area {
+        margin-top: 1rem;
+      }
+      #video_upload {
+        border: 2px dashed #666666;
+        padding: 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        width: calc(100% - 2.5rem);
+      }
+      #process-btn {
+        background-color: #666666;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        width: 100%;
+        margin-top: 1rem;
+      }
+      #process-btn:hover {
+        background-color: #555555;
+      }
+      #process-btn:disabled {
+        background-color: #999999;
+        cursor: not-allowed;
+      }
+      .result-area {
+        margin-top: 2rem;
+        display: none;
+      }
+      #output-video {
+        width: 100%;
+        max-width: 640px;
+        border-radius: 8px;
+        border: 1px solid #cccccc;
+      }
+      .loader {
+        border: 8px solid #f3f3f3;
+        border-top: 8px solid #666666;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        animation: spin 1s linear infinite;
+        margin: 2rem auto;
+        display: none;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Video Anomaly Detection</h1>
+
+      <form id="video-form" enctype="multipart/form-data">
+        <!-- Section for Default Videos -->
+        <div class="form-section">
+          <h3>
+            Choose a video from the test set (these videos are the ones with
+            anomaly in it, so they are uploaded into the server)
+          </h3>
+          <div class="video-options">
+            {% for video in default_videos %}
+            <label>
+              <input type="radio" name="default_video" value="{{ video }}" /> {{
+              video }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <button type="submit" id="process-btn">Process Video</button>
+      </form>
+
+      <div class="loader" id="loader"></div>
+
+      <div class="result-area" id="result-area">
+        <h2>Processed Video</h2>
+        <video id="output-video" controls autoplay muted>
+          Your browser does not support the video tag.
+        </video>
+      </div>
+    </div>
+
+    <script>
+      const form = document.getElementById("video-form");
+      const processBtn = document.getElementById("process-btn");
+      const loader = document.getElementById("loader");
+      const resultArea = document.getElementById("result-area");
+      const outputVideo = document.getElementById("output-video");
+      const videoUploadInput = document.getElementById("video_upload");
+      const radioButtons = document.querySelectorAll(
+        'input[name="default_video"]'
+      );
+
+      // Clear other input when one is used
+      videoUploadInput.addEventListener("click", () => {
+        radioButtons.forEach((radio) => (radio.checked = false));
+      });
+
+      radioButtons.forEach((radio) => {
+        radio.addEventListener("click", () => {
+          videoUploadInput.value = ""; // Clear file input
+        });
+      });
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+
+        // Validation
+        if (
+          !formData.get("default_video") &&
+          !formData.get("video_upload").name
+        ) {
+          alert("Please select a default video or upload a file.");
+          return;
+        }
+
+        // UI updates for processing
+        processBtn.disabled = true;
+        processBtn.textContent = "Processing...";
+        loader.style.display = "block";
+        resultArea.style.display = "none";
+
+        try {
+          const response = await fetch("/process", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "An unknown error occurred.");
+          }
+
+          const data = await response.json();
+
+          // Display the result
+          outputVideo.src = data.video_url;
+          resultArea.style.display = "block";
+          outputVideo.load();
+          outputVideo.play();
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Error processing video: " + error.message);
+        } finally {
+          // Reset UI
+          processBtn.disabled = false;
+          processBtn.textContent = "Process Video";
+          loader.style.display = "none";
+        }
+      });
+    </script>
+  </body>
+</html>
